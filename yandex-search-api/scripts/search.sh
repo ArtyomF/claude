@@ -38,9 +38,22 @@ for i in $(seq 1 15); do
     -H "Authorization: Api-Key $YANDEX_CLOUD_API_KEY")
   DONE=$(echo "$RESULT" | jq -r '.done // false')
   if [ "$DONE" = "true" ]; then
-    log "Результат готов."
-    echo "$RESULT" | jq '.'
-    log "⚠️ Поле response.rawData (если есть) — это base64-encoded XML с результатами выдачи, требует отдельной распаковки."
+    log "Результат готов. Разбираем XML-выдачу..."
+
+    RAW_DATA=$(echo "$RESULT" | jq -r '.response.rawData // empty')
+
+    if [ -z "$RAW_DATA" ]; then
+      echo "[ERROR] В ответе нет поля response.rawData. Полный ответ:" >&2
+      echo "$RESULT" | jq '.' >&2
+      exit 1
+    fi
+
+    if command -v python3 >/dev/null 2>&1; then
+      echo "$RAW_DATA" | python3 "$(dirname "$0")/parse_results.py"
+    else
+      log "⚠️ python3 не найден — вывожу необработанный ответ. Установите Python 3, чтобы получать чистый список сайтов вместо base64."
+      echo "$RESULT" | jq '.'
+    fi
     exit 0
   fi
   log "Ещё не готово (попытка $i/15)..."
